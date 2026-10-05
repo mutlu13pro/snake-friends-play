@@ -46,7 +46,7 @@ describe("mock api", () => {
     expect(players.length).toBeGreaterThan(0);
     vi.useFakeTimers();
     const frames: number[] = [];
-    const stop = api.watchPlayer(players[0].id, (s) => frames.push(s.snake.length), 100);
+    const stop = api.watchPlayer(players[0]!.id, (s) => frames.push(s.snake.length), 100);
     vi.advanceTimersByTime(500);
     stop();
     const n = frames.length;

@@ -36,7 +36,7 @@ export function randomFood(
     for (let x = 0; x < width; x++)
       if (!snake.some((s) => s.x === x && s.y === y)) free.push({ x, y });
   if (free.length === 0) return { x: -1, y: -1 };
-  return free[Math.floor(rng() * free.length)];
+  return free[Math.floor(rng() * free.length)]!;
 }
 
 export function createGame(
@@ -73,7 +73,7 @@ export function changeDirection(state: GameState, dir: Dir): GameState {
 
 export function nextHead(state: GameState, dir: Dir): { head: Point; hitWall: boolean } {
   const d = DELTA[dir];
-  const h = state.snake[0];
+  const h = state.snake[0]!;
   let x = h.x + d.x;
   let y = h.y + d.y;
   const outside = x < 0 || y < 0 || x >= state.width || y >= state.height;
@@ -113,5 +113,5 @@ export function botDirection(state: GameState): Dir {
   if (safe.length === 0) return state.dir;
   const dist = (p: Point) => Math.abs(p.x - state.food.x) + Math.abs(p.y - state.food.y);
   safe.sort((a, b) => dist(nextHead(state, a).head) - dist(nextHead(state, b).head));
-  return safe[0];
+  return safe[0]!;
 }
