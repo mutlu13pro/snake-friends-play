@@ -1,0 +1,1036 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Snake Friends Play API",
+    "version": "1.0.0",
+    "description": "Comprehensive REST and real-time streaming API specification for the Snake Friends Play application.\nSupports user authentication (session/token), personal score submissions, filtered leaderboard rankings,\nand live player spectating (polling and Server-Sent Events / WebSocket streams).\n",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Current host relative API base path"
+    },
+    {
+      "url": "https://api.snakefriends.local/api",
+      "description": "Development host endpoint"
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "User authentication, session management, and profile"
+    },
+    {
+      "name": "leaderboard",
+      "description": "High scores and ranked leaderboards"
+    },
+    {
+      "name": "live",
+      "description": "Live spectating and real-time player game streams"
+    }
+  ],
+  "paths": {
+    "/auth/signup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register a new user",
+        "description": "Creates a new user account with unique username and email.\nUpon success, automatically establishes an authenticated session and returns the user object.\n",
+        "operationId": "signup",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequest"
+              },
+              "examples": {
+                "validSignup": {
+                  "summary": "Example signup payload",
+                  "value": {
+                    "username": "newbie",
+                    "email": "newbie@snake.io",
+                    "password": "secretpassword123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully and session established.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string",
+                  "example": "session_id=abc123xyz; Path=/; HttpOnly; SameSite=Lax"
+                },
+                "description": "Session cookie set by server (if using cookie sessions)"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                },
+                "examples": {
+                  "userCreated": {
+                    "value": {
+                      "username": "newbie",
+                      "email": "newbie@snake.io"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (e.g. invalid email format, username < 3 chars, password < 6 chars).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "invalidEmail": {
+                    "value": {
+                      "message": "Invalid email"
+                    }
+                  },
+                  "shortUsername": {
+                    "value": {
+                      "message": "Username must be at least 3 characters"
+                    }
+                  },
+                  "shortPassword": {
+                    "value": {
+                      "message": "Password must be at least 6 characters"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (username taken or email already registered).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "usernameTaken": {
+                    "value": {
+                      "message": "Username taken"
+                    }
+                  },
+                  "emailRegistered": {
+                    "value": {
+                      "message": "Email already registered"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log in with credentials",
+        "description": "Authenticates a user using email and password.\nEstablishes an authenticated session via HttpOnly cookie and/or Bearer token.\n",
+        "operationId": "login",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "examples": {
+                "demoLogin": {
+                  "summary": "Demo user login",
+                  "value": {
+                    "email": "demo@snake.io",
+                    "password": "demo123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully authenticated. Returns the authenticated user.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string",
+                  "example": "session_id=abc123xyz; Path=/; HttpOnly; SameSite=Lax"
+                },
+                "description": "Session cookie set by server"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "username": "demo",
+                      "email": "demo@snake.io"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed due to invalid email or password.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "invalidCreds": {
+                    "value": {
+                      "message": "Invalid email or password"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log out current user",
+        "description": "Terminates the current authenticated session and clears the session cookie.",
+        "operationId": "logout",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully logged out.",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string",
+                  "example": "session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+                },
+                "description": "Clears session cookie"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessMessageResponse"
+                },
+                "examples": {
+                  "loggedOut": {
+                    "value": {
+                      "message": "Logged out successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or unable to process logout request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get current authenticated user",
+        "description": "Returns the currently authenticated user profile based on session cookie or Authorization header.",
+        "operationId": "getCurrentUser",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user session details or null if guest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                },
+                "examples": {
+                  "authenticated": {
+                    "value": {
+                      "username": "demo",
+                      "email": "demo@snake.io"
+                    }
+                  },
+                  "guest": {
+                    "value": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "message": "Not logged in"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leaderboard": {
+      "get": {
+        "tags": [
+          "leaderboard"
+        ],
+        "summary": "Get top leaderboard entries",
+        "description": "Returns top scores sorted in descending order, optionally filtered by game mode.",
+        "operationId": "getLeaderboard",
+        "security": [],
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Filter scores by game mode ('pass-through' or 'walls'). If omitted, returns scores across all modes.",
+            "schema": {
+              "$ref": "#/components/schemas/Mode"
+            },
+            "examples": {
+              "passThrough": {
+                "summary": "Pass-through mode",
+                "value": "pass-through"
+              },
+              "wallsOnly": {
+                "summary": "Walls mode only",
+                "value": "walls"
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of leaderboard rows to return (default 20).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of leaderboard entries ordered descending by score.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardEntry"
+                  }
+                },
+                "examples": {
+                  "topScores": {
+                    "value": [
+                      {
+                        "username": "viper",
+                        "score": 400,
+                        "mode": "pass-through",
+                        "date": "2026-10-01"
+                      },
+                      {
+                        "username": "nokia3310",
+                        "score": 360,
+                        "mode": "walls",
+                        "date": "2026-10-02"
+                      },
+                      {
+                        "username": "pixelpy",
+                        "score": 320,
+                        "mode": "pass-through",
+                        "date": "2026-10-03"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameter (e.g. unknown mode or invalid limit).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "leaderboard"
+        ],
+        "summary": "Submit a game score",
+        "description": "Submits a score achieved by the currently authenticated user.\nRequires active authentication. The entry is recorded with the current date.\n",
+        "operationId": "submitScore",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreSubmission"
+              },
+              "examples": {
+                "newScore": {
+                  "value": {
+                    "score": 280,
+                    "mode": "walls"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Score recorded successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderboardEntry"
+                },
+                "examples": {
+                  "recordedEntry": {
+                    "value": {
+                      "username": "demo",
+                      "score": 280,
+                      "mode": "walls",
+                      "date": "2026-10-05"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid submission data (e.g. negative score or invalid mode).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - user is not logged in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "notLoggedIn": {
+                    "value": {
+                      "message": "Not logged in"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/live/players": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "List live active players available to watch",
+        "description": "Returns the list of currently playing players that can be spectated.",
+        "operationId": "getLivePlayers",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array of live players.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LivePlayer"
+                  }
+                },
+                "examples": {
+                  "activePlayers": {
+                    "value": [
+                      {
+                        "id": "p1",
+                        "username": "viper",
+                        "mode": "pass-through"
+                      },
+                      {
+                        "id": "p2",
+                        "username": "mamba",
+                        "mode": "walls"
+                      },
+                      {
+                        "id": "p3",
+                        "username": "noodle",
+                        "mode": "walls"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/live/players/{id}/state": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Get snapshot game state for a live player",
+        "description": "Retrieves the current instantaneous GameState snapshot for the specified player ID.",
+        "operationId": "getLivePlayerState",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the live player",
+            "schema": {
+              "type": "string"
+            },
+            "example": "p1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Instantaneous game state snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameState"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Player not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "notFound": {
+                    "value": {
+                      "message": "Player not found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/live/players/{id}/stream": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Real-time Server-Sent Events (SSE) stream of game frames",
+        "description": "Opens a persistent Server-Sent Events (SSE) connection streaming `GameState` JSON objects.\nEach event `data` payload contains a full `GameState` representation produced on every game tick.\nThe client can terminate the connection at any time to stop spectating.\n",
+        "operationId": "watchPlayerStream",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the live player to watch",
+            "schema": {
+              "type": "string"
+            },
+            "example": "p1"
+          },
+          {
+            "name": "tickMs",
+            "in": "query",
+            "required": false,
+            "description": "Requested frame tick interval in milliseconds (default 120ms).",
+            "schema": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 1000,
+              "default": 120
+            },
+            "example": 120
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event stream yielding continuous GameState events.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "SSE stream with data: <GameState JSON> messages."
+                },
+                "examples": {
+                  "sseFrame": {
+                    "summary": "Example event payload",
+                    "value": "data: {\"width\":20,\"height\":20,\"mode\":\"pass-through\",\"snake\":[{\"x\":12,\"y\":10},{\"x\":11,\"y\":10},{\"x\":10,\"y\":10}],\"dir\":\"right\",\"pendingDir\":\"right\",\"food\":{\"x\":15,\"y\":10},\"score\":40,\"over\":false}\n"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Player not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "playerNotFound": {
+                    "value": {
+                      "message": "Player not found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session_id",
+        "description": "HttpOnly session cookie set during login or registration."
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Optional Bearer JWT authorization token."
+      }
+    },
+    "schemas": {
+      "Mode": {
+        "type": "string",
+        "enum": [
+          "pass-through",
+          "walls"
+        ],
+        "description": "Snake board game mode ('pass-through' allows wall wrapping, 'walls' causes death on border collision)."
+      },
+      "Dir": {
+        "type": "string",
+        "enum": [
+          "up",
+          "down",
+          "left",
+          "right"
+        ],
+        "description": "Movement direction of the snake."
+      },
+      "Point": {
+        "type": "object",
+        "description": "Coordinates on the discrete 2D grid (0-indexed).",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Horizontal coordinate (0 to width - 1)",
+            "example": 10
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Vertical coordinate (0 to height - 1)",
+            "example": 10
+          }
+        }
+      },
+      "GameState": {
+        "type": "object",
+        "description": "Complete game state representing the snake, food, score, dimensions, and game status.",
+        "required": [
+          "width",
+          "height",
+          "mode",
+          "snake",
+          "dir",
+          "pendingDir",
+          "food",
+          "score",
+          "over"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "description": "Grid width in cells",
+            "example": 20
+          },
+          "height": {
+            "type": "integer",
+            "description": "Grid height in cells",
+            "example": 20
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "snake": {
+            "type": "array",
+            "description": "Ordered list of body coordinates with head as element 0.",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "example": [
+              {
+                "x": 10,
+                "y": 10
+              },
+              {
+                "x": 9,
+                "y": 10
+              },
+              {
+                "x": 8,
+                "y": 10
+              }
+            ]
+          },
+          "dir": {
+            "$ref": "#/components/schemas/Dir",
+            "description": "Current moving direction"
+          },
+          "pendingDir": {
+            "$ref": "#/components/schemas/Dir",
+            "description": "Queued direction for next tick"
+          },
+          "food": {
+            "$ref": "#/components/schemas/Point",
+            "description": "Current coordinate of food"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Current score achieved",
+            "example": 30
+          },
+          "over": {
+            "type": "boolean",
+            "description": "Whether the game has ended",
+            "example": false
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "Public user profile information.",
+        "required": [
+          "username",
+          "email"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "description": "Unique display handle",
+            "example": "demo"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Registered email address",
+            "example": "demo@snake.io"
+          }
+        }
+      },
+      "UserResponse": {
+        "$ref": "#/components/schemas/User"
+      },
+      "CurrentUserResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/User"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Authenticated user object or null if guest."
+      },
+      "SignupRequest": {
+        "type": "object",
+        "description": "Registration request payload.",
+        "required": [
+          "username",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "description": "Unique handle (min 3 characters)",
+            "example": "newbie"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Valid email address",
+            "example": "newbie@snake.io"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 6,
+            "description": "Account password (min 6 characters)",
+            "example": "secret123"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "description": "Login credentials payload.",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Registered email address",
+            "example": "demo@snake.io"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "description": "User password",
+            "example": "demo123"
+          }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "description": "An entry on the leaderboard showing score, mode, user, and date.",
+        "required": [
+          "username",
+          "score",
+          "mode",
+          "date"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Username of the player",
+            "example": "demo"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total score achieved",
+            "example": 450
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date score was achieved (YYYY-MM-DD or ISO 8601 string)",
+            "example": "2026-10-05"
+          }
+        }
+      },
+      "ScoreSubmission": {
+        "type": "object",
+        "description": "Score submission payload from an active game session.",
+        "required": [
+          "score",
+          "mode"
+        ],
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total score achieved in game",
+            "example": 250
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          }
+        }
+      },
+      "LivePlayer": {
+        "type": "object",
+        "description": "Live player active in an ongoing game.",
+        "required": [
+          "id",
+          "username",
+          "mode"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique player or game stream identifier",
+            "example": "p1"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username of the player",
+            "example": "viper"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standardized error message response.",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable error description",
+            "example": "Invalid email or password"
+          },
+          "code": {
+            "type": "string",
+            "description": "Optional machine-readable error code",
+            "example": "INVALID_CREDENTIALS"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Optional additional error details or field validation failures"
+          }
+        }
+      },
+      "SuccessMessageResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Operation completed successfully"
+          }
+        }
+      }
+    }
+  }
+}
