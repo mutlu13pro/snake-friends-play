@@ -1,0 +1,1 @@
+import{c as e}from"./index-D6swrYW5.js";import{t}from"./AuthForm-Dlyu-gH8.js";var n=e(),r=()=>(0,n.jsx)(t,{kind:`login`});export{r as component};
